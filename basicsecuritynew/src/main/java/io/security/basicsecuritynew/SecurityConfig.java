@@ -16,7 +16,11 @@ public class SecurityConfig {
             .authorizeRequests()
                .anyRequest().authenticated() // 어떤 요청에도 인증을 받겠다.
             .and()
-                .formLogin(); // formLogin 방식으로 인증하겠다.
+                .formLogin() // formLogin 방식으로 인증하겠다.
+        ;
+
+        http.httpBasic();
+
         return http.build();
     }
 }

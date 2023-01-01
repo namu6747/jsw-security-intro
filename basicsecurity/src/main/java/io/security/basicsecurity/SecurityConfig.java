@@ -11,15 +11,20 @@ import org.springframework.security.config.annotation.web.configurers.SessionMan
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.web.AuthenticationEntryPoint;
+import org.springframework.security.web.FilterChainProxy;
 import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
 import org.springframework.security.web.authentication.logout.LogoutHandler;
 import org.springframework.security.web.authentication.logout.LogoutSuccessHandler;
+import org.springframework.security.web.context.HttpRequestResponseHolder;
 import org.springframework.security.web.session.ConcurrentSessionFilter;
 import org.springframework.security.web.session.SessionManagementFilter;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
 import javax.servlet.ServletException;
 import javax.servlet.http.HttpServletRequest;
@@ -35,15 +40,29 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     UserDetailsService userDetailsService;
 
     protected void configure(HttpSecurity http) throws Exception {
-        httpBasic(http);
-        authorize(http);
-        formLogin(http);
-        logout(http);
-        rememberMe(http);
-        sessionManagement(http);
+//        httpBasic(http);
+//        authorize(http);
+//        formLogin(http);
+//        logout(http);
+//        rememberMe(http);
+//        sessionManagement(http);
         //authorizeV2(http);
         //exceptionHandle(http);
         //csrf(http);
+        HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.getRequestAttributes()).getRequest();
+        http
+                .authorizeRequests()
+                .anyRequest().authenticated()
+        ;
+        http
+                .formLogin()
+        ;
+
+        securityContextHolderThreadLocalStrategy();
+    }
+
+    private static void securityContextHolderThreadLocalStrategy() {
+        SecurityContextHolder.setStrategyName(SecurityContextHolder.MODE_THREADLOCAL);
     }
 
     private void csrf(HttpSecurity http) throws Exception {
@@ -69,13 +88,13 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private void authorizeV2(HttpSecurity http) throws Exception {
         http.antMatcher("/shop/**") // 해당 경로에 대한 설정 시작
-            .authorizeRequests() // 인가에 대한 설정 시작
+                .authorizeRequests() // 인가에 대한 설정 시작
                 .antMatchers("/shop/login", "/shop/users/**").permitAll() // 여기엔 무조건 허용한다.
                 .antMatchers("/shop/mypage").hasRole("USER") // uSER 권한이 필요
                 .antMatchers("/shop/admin/pay").access("hasRole('ADMIN')")
                 .antMatchers("/shop/admin/**").access("hasRole('ADMIN') or hasRole('SYS')")
                 .anyRequest().authenticated() // 이외의 모든 요청에 대해서는 권한을 가져야만 허용한다.
-    ;
+        ;
     }
 
     private void authorize(HttpSecurity http) throws Exception {
@@ -101,44 +120,48 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
     private void formLogin(HttpSecurity http) throws Exception {
         http
                 .formLogin()
-                    //.loginPage("/loginPage") // 로그인 렌더링 html
-                    .defaultSuccessUrl("/") // 로그인 성공 후 이동 페이지
-                    .failureUrl("/login?error") // 로그인 실패 후 이동
-                    .usernameParameter("username")
-                    .passwordParameter("password")
-                    //.loginProcessingUrl("/login_proc") // 로그인 Form Action Url
-                    .successHandler(new AuthenticationSuccessHandler() {
-                        @Override
-                        public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-                            System.out.println("authentication = " + authentication.getName());
-                            response.sendRedirect("/?successHandler");
-                        }})
-                    .failureHandler(new AuthenticationFailureHandler() {
-                        @Override
-                        public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
-                            System.out.println("exception = " + exception.getMessage());
-                            response.sendRedirect("/?failureHandler");
-                        }})
-                    .permitAll(); // 위에서 모든 인가를 요청했지만, 여기에 있는 Url은 허용한다.;
+                //.loginPage("/loginPage") // 로그인 렌더링 html
+                .defaultSuccessUrl("/") // 로그인 성공 후 이동 페이지
+                .failureUrl("/login?error") // 로그인 실패 후 이동
+                .usernameParameter("username")
+                .passwordParameter("password")
+                //.loginProcessingUrl("/login_proc") // 로그인 Form Action Url
+                .successHandler(new AuthenticationSuccessHandler() {
+                    @Override
+                    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+                        System.out.println("authentication = " + authentication.getName());
+                        response.sendRedirect("/?successHandler");
+                    }
+                })
+                .failureHandler(new AuthenticationFailureHandler() {
+                    @Override
+                    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+                        System.out.println("exception = " + exception.getMessage());
+                        response.sendRedirect("/?failureHandler");
+                    }
+                })
+                .permitAll(); // 위에서 모든 인가를 요청했지만, 여기에 있는 Url은 허용한다.;
     }
 
     private void logout(HttpSecurity http) throws Exception {
         http
-        .logout()
-            .logoutUrl("/logout")
-            .logoutSuccessUrl("/login")
-            .deleteCookies("JSESSIONID","remember")
-            .addLogoutHandler(new LogoutHandler() {
-                @Override
-                 public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
-                    HttpSession session = request.getSession();
-                    session.invalidate();
-             }})
-            .logoutSuccessHandler(new LogoutSuccessHandler() {
-                @Override
-                public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-                    response.sendRedirect("/login");
-                }})
+                .logout()
+                .logoutUrl("/logout")
+                .logoutSuccessUrl("/login")
+                .deleteCookies("JSESSIONID", "remember")
+                .addLogoutHandler(new LogoutHandler() {
+                    @Override
+                    public void logout(HttpServletRequest request, HttpServletResponse response, Authentication authentication) {
+                        HttpSession session = request.getSession();
+                        session.invalidate();
+                    }
+                })
+                .logoutSuccessHandler(new LogoutSuccessHandler() {
+                    @Override
+                    public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+                        response.sendRedirect("/login");
+                    }
+                })
         ;
     }
 
@@ -158,10 +181,10 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
 
     private void rememberMe(HttpSecurity http) throws Exception {
         http.rememberMe()
-                            .rememberMeParameter("remember")
-                            .tokenValiditySeconds(3600) // 기본 14일
-                            .alwaysRemember(false) // 기능이 활성화되지 않아도 항상 실행
-                            .userDetailsService(userDetailsService);
+                .rememberMeParameter("remember")
+                .tokenValiditySeconds(3600) // 기본 14일
+                .alwaysRemember(false) // 기능이 활성화되지 않아도 항상 실행
+                .userDetailsService(userDetailsService);
     }
 
     @Override
